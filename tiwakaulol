@@ -1,0 +1,248 @@
+-- [[ ALIEN BOSS AUTO FARM UI ]] --
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local muscleEvent = LocalPlayer:WaitForChild("muscleEvent")
+local alienChestRemote = ReplicatedStorage:WaitForChild("rEvents"):WaitForChild("alienBossChestOpened")
+local sellPetEvent = ReplicatedStorage:WaitForChild("rEvents"):WaitForChild("sellPetEvent")
+
+-- Config States (_G)
+_G.AutoAlienBoss = false
+_G.AutoClaimChest = true
+_G.AutoSellPet = false
+_G.HitInterval = 0.03
+
+-- Tanggalin ang lumang UI kung meron man para iwas duplicate
+local oldGui = CoreGui:FindFirstChild("AlienBossToggleUI") or LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("AlienBossToggleUI")
+if oldGui then
+    oldGui:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AlienBossToggleUI"
+ScreenGui.ResetOnSpawn = false
+pcall(function()
+    ScreenGui.Parent = CoreGui
+end)
+if not ScreenGui.Parent then
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Main Frame (Panel)
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 200, 0, 210)
+MainFrame.Position = UDim2.new(0.5, -100, 0.15, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.Parent = MainFrame
+
+-- Title Label
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, 0, 0, 35)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextSize = 14
+TitleLabel.Text = "Alien Boss Auto Farm"
+TitleLabel.Parent = MainFrame
+
+-- Helper function para sa paggawa ng Toggle Buttons
+local function createToggleButton(name, text, positionY, defaultState)
+    local btn = Instance.new("TextButton")
+    btn.Name = name
+    btn.Size = UDim2.new(0, 180, 0, 35)
+    btn.Position = UDim2.new(0.5, -90, 0, positionY)
+    btn.BackgroundColor3 = defaultState and Color3.fromRGB(45, 170, 75) or Color3.fromRGB(180, 45, 45)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 13
+    btn.Text = text .. (defaultState and ": ON" or ": OFF")
+    btn.Parent = MainFrame
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = btn
+    
+    return btn
+end
+
+-- Gumawa ng mga Button
+local BossToggle = createToggleButton("BossToggle", "Auto Boss", 45, _G.AutoAlienBoss)
+local ChestToggle = createToggleButton("ChestToggle", "Auto Claim Chest", 90, _G.AutoClaimChest)
+local SellToggle = createToggleButton("SellToggle", "Auto Sell Pet", 135, _G.AutoSellPet)
+
+-- Close / Minimize Button (Opsyonal kung gusto itago ang UI)
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 180, 0, 25)
+CloseBtn.Position = UDim2.new(0.5, -90, 0, 175)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+CloseBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+CloseBtn.Font = Enum.Font.Gotham
+CloseBtn.TextSize = 12
+CloseBtn.Text = "Close UI"
+CloseBtn.Parent = MainFrame
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.Parent = CloseBtn
+
+CloseBtn.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+-- Core Functions
+local function sellSpecificPets()
+    local petsFolder = LocalPlayer:FindFirstChild("petsFolder")
+    if not petsFolder then return end
+
+    local petsToSell = {}
+
+    local function collectPetsFromCategory(categoryName, petName)
+        local categoryFolder = petsFolder:FindFirstChild(categoryName)
+        if categoryFolder then
+            for _, pet in ipairs(categoryFolder:GetChildren()) do
+                if pet.Name == petName then
+                    table.insert(petsToSell, pet)
+                end
+            end
+        end
+    end
+
+    collectPetsFromCategory("Epic", "Alien Slime")
+    collectPetsFromCategory("Basic", "Cosmic Invader")
+    collectPetsFromCategory("Unique", "UFO Bot")
+    collectPetsFromCategory("Unique", "Galactic Overlord")
+
+    if #petsToSell > 0 then
+        pcall(function()
+            sellPetEvent:FireServer(table.unpack({
+                [1] = "sellPets",
+                [2] = petsToSell,
+            }))
+        end)
+    end
+end
+
+local function claimChestAndDrop()
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    
+    local alienChest = Workspace:FindFirstChild("Alien Chest")
+    if alienChest and hrp and _G.AutoClaimChest then
+        hrp.CFrame = alienChest:GetPivot() * CFrame.new(0, 3, 0)
+        task.wait(0.2)
+        
+        pcall(function()
+            firesignal(alienChestRemote.OnClientEvent, table.unpack({
+                [1] = alienChest,
+                [2] = "UFO Bot",
+                [3] = "Pet",
+                [4] = "Unique",
+                [5] = 60,
+            }))
+        end)
+    end
+
+    task.wait(0.5)
+    if _G.AutoSellPet then
+        sellSpecificPets()
+    end
+
+    if hrp then
+        hrp.Anchored = false
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end
+    if hum then
+        hum.PlatformStand = false
+        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end
+end
+
+-- Button Click Events
+BossToggle.MouseButton1Click:Connect(function()
+    _G.AutoAlienBoss = not _G.AutoAlienBoss
+    BossToggle.Text = "Auto Boss: " .. (_G.AutoAlienBoss and "ON" or "OFF")
+    BossToggle.BackgroundColor3 = _G.AutoAlienBoss and Color3.fromRGB(45, 170, 75) or Color3.fromRGB(180, 45, 45)
+    if not _G.AutoAlienBoss then
+        claimChestAndDrop()
+    end
+end)
+
+ChestToggle.MouseButton1Click:Connect(function()
+    _G.AutoClaimChest = not _G.AutoClaimChest
+    ChestToggle.Text = "Auto Claim Chest: " .. (_G.AutoClaimChest and "ON" or "OFF")
+    ChestToggle.BackgroundColor3 = _G.AutoClaimChest and Color3.fromRGB(45, 170, 75) or Color3.fromRGB(180, 45, 45)
+end)
+
+SellToggle.MouseButton1Click:Connect(function()
+    _G.AutoSellPet = not _G.AutoSellPet
+    SellToggle.Text = "Auto Sell Pet: " .. (_G.AutoSellPet and "ON" or "OFF")
+    SellToggle.BackgroundColor3 = _G.AutoSellPet and Color3.fromRGB(45, 170, 75) or Color3.fromRGB(180, 45, 45)
+end)
+
+-- Main Loop
+task.spawn(function()
+    local wasFighting = false
+    while true do
+        if _G.AutoAlienBoss then
+            local alienBoss = Workspace:FindFirstChild("Alien Boss")
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+            if alienBoss and char and hrp then
+                local hitbox = alienBoss:FindFirstChild("BossDamageHitbox", true)
+                local bossPart = alienBoss:FindFirstChild("Boss")
+
+                if not (bossPart and bossPart:IsA("BasePart")) then
+                    bossPart = hitbox
+                end
+
+                local health = bossPart and bossPart:GetAttribute("Health")
+
+                if bossPart and (typeof(health) ~= "number" or health > 0) then
+                    wasFighting = true
+                    local offsetY = (bossPart.Size.Y / 2) + 3
+                    hrp.CFrame = bossPart.CFrame * CFrame.new(0, offsetY, 0)
+                    hrp.AssemblyLinearVelocity = Vector3.zero
+                    hrp.AssemblyAngularVelocity = Vector3.zero
+
+                    local backpack = LocalPlayer:FindFirstChild("Backpack")
+                    local punch = char:FindFirstChild("Punch") or (backpack and backpack:FindFirstChild("Punch"))
+                    if punch and punch.Parent ~= char then
+                        punch.Parent = char
+                    end
+
+                    local leftHand = char:FindFirstChild("LeftHand")
+                    local rightHand = char:FindFirstChild("RightHand")
+
+                    if leftHand then
+                        muscleEvent:FireServer("punch", leftHand)
+                    end
+                    if rightHand then
+                        muscleEvent:FireServer("Punch", rightHand)
+                    end
+                elseif wasFighting then
+                    wasFighting = false
+                    claimChestAndDrop()
+                end
+            elseif wasFighting then
+                wasFighting = false
+                claimChestAndDrop()
+            end
+        end
+
+        task.wait(_G.HitInterval)
+    end
+end)
